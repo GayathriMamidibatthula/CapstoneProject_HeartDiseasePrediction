@@ -1,0 +1,300 @@
+---
+title: "Heart Disease Prediction"
+author: "Gayathri Mamidibatthula"
+date: "07/18/2021"
+output:
+  pdf_document: default
+  word_document: default
+---
+<!--Introduction-->
+
+The main goal of this project is to be able to accurately classify whether a patient has a heart disease or not based on diagnostic test data. The prediction is done using classification algorithms in R like SVM(Support Vector Machine) models and Random Forest.
+
+<!--Dataset-->
+
+The dataset used here is the Heart Disease UCI(https://archive.ics.uci.edu/ml/datasets/Heart+Disease) which contains 76 attributes, where a subset of 14 of them are used for the prediction. 
+
+In particular, the Cleveland Clinic Heart Disease dataset contains 14 variables related to patient diagnostics and one outcome variable indicating the presence or absence of heart disease.
+
+Here is a summary of the variables used in the dataset:
+
+1. Age: Age of subject
+
+2. Sex: Gender of subject:
+0 = female 1 = male
+
+3. Chest-pain type: Type of chest-pain experienced by the individual:
+1 = typical angina
+2 = atypical angina
+3 = non-angina pain
+4 = asymptomatic angina
+
+4. Resting Blood Pressure: Resting blood pressure in mm Hg
+
+5. Serum Cholesterol: Serum cholesterol in mg/dl
+
+6. Fasting Blood Sugar: Fasting blood sugar level relative to 120 mg/dl: 0 = fasting blood sugar <= 120 mg/dl
+1 = fasting blood sugar > 120 mg/dl
+
+7. Resting ECG: Resting electrocardiographic results
+0 = normal
+1 = ST-T wave abnormality
+2 = left ventricle hyperthrophy
+
+8. Max Heart Rate Achieved: Max heart rate of subject
+
+9. Exercise Induced Angina:
+0 = no 1 = yes
+
+10. ST Depression Induced by Exercise Relative to Rest: ST Depression of subject
+
+11. Peak Exercise ST Segment:
+1 = Up-sloaping
+2 = Flat
+3 = Down-sloaping
+
+12. Number of Major Vessels (0-3) Visible on Flouroscopy: Number of visible vessels under flouro
+
+13. Thal: Form of thalassemia: 3
+3 = normal
+6 = fixed defect
+7 = reversible defect
+
+14. Diagnosis of Heart Disease: Indicates whether subject is suffering from heart disease or not:
+0 = absence
+1, 2, 3, 4 = heart disease present
+
+Key Steps performed:
+
+1. Loading Libraries and Importing the Dataset
+2. Exploratory Data Analysis(EDA)
+3. Data Cleaning
+4. Building the ML Models
+5. Validating the Results
+
+LOADING LIBRARIES 
+```{r}
+
+#Loading Libraries
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(readr)) install.packages("readr", repos = "http://cran.us.r-project.org")
+if(!require(naniar)) install.packages("naniar", repos = "http://cran.us.r-project.org")
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(naniar)
+library(caTools)
+library(caret)
+library(e1071)
+library(randomForest)
+```
+IMPORTING DATASET
+```{r}
+#Importing Dataset
+setwd("C:/Users/gayathri_sri_mamidib/Desktop/Gayathri Imp/HDSC/Capstone2 - Heart Disease Prediction")
+df<- read_csv("heart.csv")
+head(df)
+
+#Examining the data
+str(df)
+
+```
+All the variables in the data are in numerical form. Converting variables from integer to factors for further analysis:
+
+```{r}
+df$sex <- as.factor(df$sex)
+df$cp <- as.factor(df$cp)
+df$fbs <- as.factor(df$fbs)
+df$restecg <- as.factor(df$restecg)
+df$exang <- as.factor(df$exang)
+df$slope <- as.factor(df$slope)
+df$ca <- as.factor(df$ca)
+df$thal <- as.factor(df$thal)
+df$target <- as.factor(df$target)
+
+str(df)
+
+```
+
+2. EXPLORATORY DATA ANALYSIS(EDA)
+
+```{r}
+#Analyze no of people suffering from heart disease
+table(df$target)
+
+```
+
+From the above analysis, it is deduced that the number of people who are suffering from heart disease is more than number of people who are not suffering from heart disease.
+
+Plot Heart Disease Count based on Gender:
+
+Variables used here:
+a) Sex: Male - 1, Female - 0
+b) Target(whether patient has heart disease or not): Yes - 1, No - 0
+
+```{r echo=FALSE}
+#Plot heart disease count by Gender
+counts <- table(df$target, df$sex)
+
+barplot(counts, main = "Heart Disease by Gender category", xlab = "Gender",ylab="Heart Disease Count", col = c("green","red"), beside = TRUE )
+
+```
+Plot Heart Disease Count by Fasting Blood Sugar
+```{r,fig.align='center', echo=FALSE}
+
+fbs <- table(df$target, df$fbs)
+
+barplot(fbs, main = "Heart Disease by Fasting Blood Sugar Category", xlab = "Fasting Blood Sugar", col = c("green","red"), beside = TRUE )
+
+```
+It can be see that people having fasting blood sugar (fbs) < 120 have more chance of having heart disease than people having fbs > 120.
+
+Heart Disease by Chest Pain category
+
+```{r echo=FALSE}
+cp <- table(df$target, df$cp)
+
+barplot(cp, main = "Heart Disease by Chest Pain category ", xlab = "Chest Pain category ", col = c("green","red"), legend =  rownames(cp), beside = TRUE )
+
+```
+There are 4-Levels of chest pain given in the barplot where 3 is highest
+
+People who are on 3rd level of chest pain are very less as compared to people who are on 2nd level of chest pain. The inference here is that most people must have died after 2nd level of chest pain.
+
+Relation between Cholestrol and Chest Pain
+
+```{r,fig.align='center', echo=FALSE}
+ggplot(df, aes(x = cp, y = chol)) + geom_boxplot(aes(fill = target),position = position_dodge(0.9)) + scale_fill_manual(values = c("#999999", "#E69F00")) + ggtitle("Cholestrol Vs Chest Pain")
+
+```
+
+From above graph, we can say that if cholestrol is less than an approx value of 240  and chest pain is at level 3~4 then chances of having heart diseases are higher.
+
+3. DATA CLEANING
+
+Check for Missing data:
+
+```{r echo=FALSE}
+
+#Handling Missing Data:
+
+vis_miss(df)
+
+```
+No missing data is found in the dataset. Next step is building the ML models.
+
+4. BUILDING THE ML MODELS
+
+```{r}
+#set.seed(123)
+#Splitting the data into training set and test set:
+
+split = sample.split(df$target, SplitRatio = 0.8)
+training_set = subset(df, split = TRUE)
+test_set = subset(df, split = FALSE)
+
+#Scaling numeric values:
+
+training_set[ , c(1,4,5,8, 10)] =  scale(training_set[, c(1,4,5,8, 10)])
+test_set[ , c(1,4,5,8, 10)] = scale(test_set[ , c(1,4,5,8, 10)])
+```
+a) SVM(Support Vector Machine) Model:
+
+Fitting SVM to the training set. First we will check the accuracy by using linear kernel:
+
+```{r}
+#Fitting SVM to training set using linear kernel:
+
+classifier_svm = svm(formula = target ~ .,
+                     data = training_set,
+                     type = 'C-classification',
+                     kernel = 'linear')
+
+# Predicting the Test set results
+y_pred_svm = predict(classifier_svm, newdata = test_set[-14])
+
+confusionMatrix(y_pred_svm , test_set$target)
+
+
+```
+Test Results for SVM using Linear Kernel:
+Accuracy: 87.79%
+Sensitivity/Recall: 81.16%
+Specificity: 93.33%
+
+We will now check the accuracy by using radial kernel:
+
+```{r}
+#Fitting SVM to training set using radial kernel:
+classifier_svm = svm(formula = target ~ .,
+                     data = training_set,
+                     type = 'C-classification',
+                     kernel = 'radial')
+
+# Predicting the Test set results
+y_pred_svm = predict(classifier_svm, newdata = test_set[-14])
+
+confusionMatrix(y_pred_svm , test_set$target)
+
+```
+
+Test Results for SVM using radial kernel:
+Accuracy: 86.14%
+Sensitivity/Recall: 84.06%
+Specificity: 87.88%
+
+It can be deduced that linear kernel is better than radial kernel for SVM. Hence, classification is linear here.
+
+c) Random Forest
+
+```{r}
+
+#Fitting Random Forest Model
+
+classifier_rf = randomForest(x = training_set[-14], y = training_set$target, ntree = 400)
+
+# Predicting the Test set results
+y_pred_rf = predict(classifier_rf, newdata = test_set[-14])
+
+confusionMatrix(y_pred_rf , test_set$target)
+```
+
+Test Results using Random Forest:
+Accuracy: 100%
+Sensitivity/Recall: 100%
+Specificity: 100%
+
+Since accuracy is 100%, we need to check for the possibility of overfitting. 
+
+To check overfitting, we will apply repeated k-cross validation with 10 fold.
+
+```{r warning=FALSE}
+
+#Check possibility of overfitting using repeated k-cross validation:
+
+# define training control
+train_control <- trainControl(method="repeatedcv", number=10, repeats=3)
+# train the model
+model <- train(target~., data=df, trControl=train_control, method="nb")
+# summarize results
+print(model)
+
+```
+
+After performing repeated k-fold cross validation, the final accuracy is around 82.2%, showing that there was some overfitting in the model.
+
+5. Validation of Results
+
+The final results show the following accuracy values:
+
+1. SVM using linear kernel:  87.79%
+2. SVM using radial kernel: : 86.14%
+3. Random Forest: 100%
+4. Random Forest(repeated k-fold cross validation): 82.2%
+
+Conclusion:
+
+It can be deduced that Random Forest has the best accuracy compared to all models, but has a significant effect of overfitting as seen by repeated k-fold cross validation. The accuracy of the model can be improved by reducing overfitting.
+
+
